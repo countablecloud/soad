@@ -1,7 +1,10 @@
 from strategies.base_strategy import BaseStrategy
 
+
 class MyCustomStrategy(BaseStrategy):
-    def __init__(self, broker, stock_allocations, cash_percentage, rebalance_interval_minutes):
+    def __init__(
+        self, broker, stock_allocations, cash_percentage, rebalance_interval_minutes
+    ):
         super().__init__(broker)
         self.stock_allocations = stock_allocations
         self.cash_percentage = cash_percentage
