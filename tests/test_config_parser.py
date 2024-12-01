@@ -1,7 +1,9 @@
+from unittest.mock import MagicMock, patch
+
 import pytest
-from unittest.mock import patch, MagicMock
-from utils.config import initialize_brokers, initialize_strategies
 import yaml
+from utils.config import initialize_brokers, initialize_strategies
+
 
 @pytest.fixture
 def config():
@@ -37,8 +39,9 @@ def config():
         rebalance_interval_minutes: 60
     """
 
-@patch('utils.config.TradierBroker')
-@patch('utils.config.TastytradeBroker')
+
+@patch("utils.config.TradierBroker")
+@patch("utils.config.TastytradeBroker")
 def test_initialize_brokers(MockTastytradeBroker, MockTradierBroker, config):
     mock_broker_tradier = MagicMock()
     mock_broker_tastytrade = MagicMock()
@@ -48,20 +51,27 @@ def test_initialize_brokers(MockTastytradeBroker, MockTradierBroker, config):
     parsed_config = yaml.safe_load(config)
     brokers = initialize_brokers(parsed_config)
 
-    assert brokers == {'tradier': mock_broker_tradier, 'tastytrade': mock_broker_tastytrade}
+    assert brokers == {
+        "tradier": mock_broker_tradier,
+        "tastytrade": mock_broker_tastytrade,
+    }
     MockTradierBroker.assert_called_once()
     MockTastytradeBroker.assert_called_once()
 
-@patch('utils.config.load_strategy_class')
-@patch('strategies.constant_percentage_strategy.ConstantPercentageStrategy', autospec=True)
+
+@patch("utils.config.load_strategy_class")
+@patch(
+    "strategies.constant_percentage_strategy.ConstantPercentageStrategy", autospec=True
+)
 @pytest.mark.skip(reason="Still requires fixing the TODOs")
-def test_initialize_strategies(MockConstantPercentageStrategy, mock_load_strategy_class, config):
+def test_initialize_strategies(
+    MockConstantPercentageStrategy, mock_load_strategy_class, config
+):
     mock_strategy_constant = MagicMock()
-    mock_strategy_custom = MagicMock()
     MockConstantPercentageStrategy.return_value = mock_strategy_constant
 
     parsed_config = yaml.safe_load(config)
-    brokers = {'tradier': MagicMock(), 'tastytrade': MagicMock()}
+    brokers = {"tradier": MagicMock(), "tastytrade": MagicMock()}
     strategies = initialize_strategies(brokers, parsed_config)
 
     assert len(strategies) == 2
@@ -74,7 +84,7 @@ def test_initialize_strategies(MockConstantPercentageStrategy, mock_load_strateg
     #     starting_capital=10000
     # )
     mock_load_strategy_class.assert_any_call(
-        'custom_strategies/my_custom_strategy.py', 'MyCustomStrategy'
+        "custom_strategies/my_custom_strategy.py", "MyCustomStrategy"
     )
     # TODO: Fix this assertion after refining the mock strategy call.
     # mock_strategy_custom.assert_called_once_with(
