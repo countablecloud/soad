@@ -4,79 +4,100 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    poetry2nix = {
+      url = "github:nix-community/poetry2nix";
+    };
+    nixpkgs-docker-layering = {
+      url = "github:colonelpanic8/nixpkgs/docker-customisable-layering-strategy";
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils }:
+  outputs = { self, nixpkgs, flake-utils, poetry2nix, nixpkgs-docker-layering }:
     flake-utils.lib.eachDefaultSystem (system:
       let
+        inherit (poetry2nix.lib.mkPoetry2Nix {inherit pkgs;}) mkPoetryApplication defaultPoetryOverrides;
         pkgs = nixpkgs.legacyPackages.${system};
+        python-with-pip = pkgs.python312.withPackages (p:
+          with p; [
+            pip
+          ]);
+        dev-packages = with pkgs; [
+          pyright
+          black
+          isort
+          autoflake
+          alejandra
 
-        pythonEnv = pkgs.python3.withPackages (ps: with ps; [ pip virtualenv ]);
+          python-with-pip
+          git
+          poetry
+          curl
 
-        pipRequirements = pkgs.writeText "requirements.txt" ''
-          tastytrade==8.3
-          pytest==8.3.3
-          pytest-asyncio==0.24.0
-          requests-oauthlib
-          sqlalchemy
-          pyyaml
-          flask
-          flask-cors
-          flask-jwt-extended
-          python-json-logger
-          pytz
-          numpy
-          scipy
-          asyncpg
-          psycopg2-binary
-          websocket-client
-          yfinance
-          freezegun
-          aiosqlite
-          greenlet
-          python-dotenv
-          aiohttp
-        '';
+          jq
+          just
+          kubernetes-helm
+          kubectx
+          kubectl
+          terraform
+          terragrunt
+        ];
+        other-packages = with pkgs; [
+          boost
+          glib
+          stdenv.cc.cc
+          zlib
+          clang
+        ];
+        pypkgs-build-requirements = {
+          asyncio = ["setuptools"];
+        };
+        p2n-overrides = defaultPoetryOverrides.extend (self: super:
+        (builtins.mapAttrs (
+            package: build-requirements:
+              (builtins.getAttr package super).overridePythonAttrs (old: {
+                buildInputs =
+                  (old.buildInputs or [])
+                  ++ (builtins.map (pkg:
+                    if builtins.isString pkg
+                    then builtins.getAttr pkg super
+                    else pkg)
+                  build-requirements);
+              })
+          )
+          pypkgs-build-requirements));
 
       in {
-        devShells.default = pkgs.mkShell {
-          buildInputs = [
-            pythonEnv
-            pkgs.stdenv.cc.cc.lib # Add libstdc++
-            pkgs.zlib
-            pkgs.glib
-          ];
-
-          shellHook = ''
-            # Create and activate a virtual environment if it doesn't exist
-            VENV=.venv
-            if test ! -d $VENV; then
-              echo "Creating virtual environment..."
-              ${pythonEnv}/bin/python -m venv $VENV
-            fi
-
-            # Always recreate activation script to ensure paths are correct
-            ${pythonEnv}/bin/python -m venv $VENV
-
-            # Activate the virtual environment
-            source ./$VENV/bin/activate
-
-            # Ensure pip is up to date in the venv
-            python -m pip install --upgrade pip
-
-            # Install pip requirements
-            echo "Installing pip packages..."
-            pip install -r ${pipRequirements}
-
-            # Export PYTHONPATH to include the project root
-            export PYTHONPATH="$PWD:$PYTHONPATH"
-
-            # Ensure virtualenv's bin directory is first in PATH
-            export PATH="$PWD/.venv/bin:$PATH"
-
-            # Add library path for libstdc++ and other system libraries
-            export LD_LIBRARY_PATH="${pkgs.stdenv.cc.cc.lib}/lib:${pkgs.zlib}/lib:${pkgs.glib}/lib:$LD_LIBRARY_PATH"
-          '';
+        packages = rec {
+          soad = mkPoetryApplication {
+            projectDir = self;
+            overrides = p2n-overrides;
+            preferWheels = true;
+            python = pkgs.python312;
+            extras = [];
+            groups = [];
+            checkGroups = [];
+          };
+        };
+        devShells.default = pkgs.mkShell rec {
+          packages = [pkgs.poetry];
+          nativeBuildInputs = dev-packages ++ other-packages;
+          LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath nativeBuildInputs;
+          STDENV = "${pkgs.stdenv.cc.cc.lib}";
+          PYRIGHT = "${pkgs.pyright}/bin/pyright";
+          shellHook =
+          ''
+            poetry env use ${python-with-pip}/bin/python
+            export PATH="$PATH:$(pwd)/bin"
+          ''
+          + (
+            if system == "x86_64-linux"
+            then ''
+              if [[ $(grep -i microsoft /proc/version) ]]; then
+              export LD_LIBRARY_PATH=/usr/lib/wsl/lib:$LD_LIBRARY_PATH
+              fi
+            ''
+            else ""
+          );
         };
       });
 }
