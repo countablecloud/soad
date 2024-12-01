@@ -1,7 +1,10 @@
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from database.models import Trade, AccountInfo, Balance, init_db
 import unittest
+
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
+
+from database.models import init_db
+
 
 class BaseTest(unittest.TestCase):
 
@@ -14,7 +17,7 @@ class BaseTest(unittest.TestCase):
         pass
 
     async def asyncSetUp(self):
-        self.engine = create_async_engine('sqlite+aiosqlite:///:memory:')
+        self.engine = create_async_engine("sqlite+aiosqlite:///:memory:")
         await init_db(self.engine)
         self.Session = sessionmaker(bind=self.engine, class_=AsyncSession)
         self.session = self.Session()

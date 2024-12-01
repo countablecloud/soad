@@ -1,0 +1,4 @@
+[flake8]
+extend-ignore = D100, D101, D102, D103, D102, D107, D100, D103, E702, W504, F403, E203, W503, E704
+max-line-length = 100
+max-complexity = 18
